@@ -8,7 +8,7 @@ import DiscussionControls from 'flarum/forum/utils/DiscussionControls';
 
 // Things fixed to the bottom of the screen the button must sit above.
 const OBSTACLES = [
-  '.Composer.minimized, .MobileTab-bar, .pl-peek, .pl-dock > *, #bespoke-totop, .Bespoke-toTop, #bespoke-launcher',
+  '.AlertManager .Alert, .Composer.minimized, .MobileTab-bar, .pl-peek, .pl-dock > *, #bespoke-totop, .Bespoke-toTop, #bespoke-launcher',
   '.CookieBanner, .cc-window, .cc-banner, #onetrust-banner-sdk, #CybotCookiebotDialog, #cookie-banner, .cookie-banner',
 ].join(', ');
 
