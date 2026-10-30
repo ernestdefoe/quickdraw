@@ -199,6 +199,9 @@
   }
   &:hover,
   &:focus-visible {
+    // Each button is its own layer (it's transformed), so the one showing
+    // its label comes to the front, over its neighbours.
+    z-index: 1;
     background: var(--control-bg);
     color: var(--control-color);
 
