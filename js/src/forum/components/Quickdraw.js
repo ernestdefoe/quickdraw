@@ -10,6 +10,8 @@ import DiscussionControls from 'flarum/forum/utils/DiscussionControls';
 const OBSTACLES = [
   '.AlertManager .Alert, .Composer.minimized, .MobileTab-bar, .pl-peek, .pl-dock > *, #bespoke-totop, .Bespoke-toTop, #bespoke-launcher',
   '.CookieBanner, .cc-window, .cc-banner, #onetrust-banner-sdk, #CybotCookiebotDialog, #cookie-banner, .cookie-banner',
+  // Parley's chat heads, and the bottom bars of the Concourse and Lobby themes.
+  '.pl-heads > *, .ConcourseShell-tabbar, .LobbyShell-dock > *, .LobbyCompose',
 ].join(', ');
 
 // Fan rings, inside out: radius in px and how many buttons fit on it.
