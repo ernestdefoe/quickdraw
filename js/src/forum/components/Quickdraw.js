@@ -104,7 +104,8 @@ export default class Quickdraw extends Component {
           aria-controls="quickdraw-menu"
           aria-label={extractText(t(this.open ? 'close' : 'open'))}
           title={extractText(t(this.open ? 'close' : 'open'))}
-          onclick={() => (this.open ? this.close(true) : this.show())}
+          // detail is 0 for a keyboard press: only then does focus move into the menu.
+          onclick={(e) => (this.open ? this.close(e.detail === 0) : this.show(null, e.detail === 0))}
         >
           <Icon name="fas fa-bolt" className="Quickdraw-fabIcon Quickdraw-fabIcon--open" />
           <Icon name="fas fa-xmark" className="Quickdraw-fabIcon Quickdraw-fabIcon--close" />
@@ -133,9 +134,9 @@ export default class Quickdraw extends Component {
         label: extractText(t(moderation.length ? 'moderate' : 'more')),
         badge: flagged && flagged.badge,
         tone: moderation.length ? 'moderate' : null,
-        action: () => {
+        action: (e) => {
           this.expanded = true;
-          this.show(moderation.length ? '.Quickdraw-section .Quickdraw-item' : null);
+          this.show(moderation.length ? '.Quickdraw-section .Quickdraw-item' : null, e.detail === 0);
         },
       });
     }
@@ -195,7 +196,7 @@ export default class Quickdraw extends Component {
         tabindex={this.open ? 0 : -1}
         aria-label={item.badge ? `${item.label} (${item.badge})` : item.label}
         data-label={item.label}
-        onclick={() => this.run(item)}
+        onclick={(e) => this.run(item, e)}
       >
         <span className="Quickdraw-itemIcon">
           <Icon name={item.icon} />
@@ -312,8 +313,9 @@ export default class Quickdraw extends Component {
     return items;
   }
 
-  show(focus) {
+  show(focus, keyboard = true) {
     this.open = true;
+    if (!keyboard) return;
     setTimeout(() => {
       const target = (focus && this.element?.querySelector(focus)) || this.element?.querySelector('.Quickdraw-item');
       target?.focus({ preventScroll: true });
@@ -327,9 +329,9 @@ export default class Quickdraw extends Component {
     if (refocus) this.element?.querySelector('.Quickdraw-fab')?.focus({ preventScroll: true });
   }
 
-  run(item) {
+  run(item, e) {
     this.close();
-    item.action();
+    item.action(e);
   }
 
   // Lift the button above whatever else is fixed to the bottom of the screen
