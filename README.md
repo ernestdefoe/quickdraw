@@ -7,6 +7,8 @@ A floating action button for Flarum discussion pages. Tap it and the actions for
 - **Moderate**, for moderators and admins: flagged posts in this discussion (the count shows on the button), then every moderation control your forum has, such as rename, lock, sticky, tags and delete
 - Guests get the actions that don't need an account, plus **Log in to reply**
 
+![The fan on a phone](screenshots/fan-phone.jpg) ![Moderate opens the full panel](screenshots/moderate-phone.jpg)
+
 Quickdraw only appears on discussion pages. It builds its menu from the discussion page's own controls, so actions added by other extensions show up too. Each action only shows when the viewer is allowed to use it.
 
 ## Settings
