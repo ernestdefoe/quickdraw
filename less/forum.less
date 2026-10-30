@@ -235,6 +235,9 @@
     opacity: 1;
     transform: translate(-50%, 0);
   }
+  .Quickdraw .Quickdraw-fanItem--edge .Quickdraw-itemLabel {
+    transform: none;
+  }
 }
 .Quickdraw .Quickdraw-fanItem.Quickdraw-item--primary {
   border-color: transparent;
@@ -278,6 +281,22 @@
   transform: translate(var(--qd-x), calc(~"var(--qd-y) * -1"));
 }
 
+// Labels of buttons at the screen edge line up with that edge instead of
+// centring, which would run off the screen.
+.Quickdraw .Quickdraw-fanItem--edge .Quickdraw-itemLabel {
+  left: auto;
+  right: 0;
+  transform: translate(0, 4px);
+}
+.Quickdraw .Quickdraw-fanItem--edge:hover .Quickdraw-itemLabel,
+.Quickdraw .Quickdraw-fanItem--edge:focus-visible .Quickdraw-itemLabel {
+  transform: none;
+}
+.Quickdraw--left .Quickdraw-fanItem--edge .Quickdraw-itemLabel {
+  right: auto;
+  left: 0;
+}
+
 // Touch screens have no hover: every label shows, small, under its button.
 @media (hover: none) {
   .Quickdraw .Quickdraw-fanItem .Quickdraw-itemLabel {
@@ -293,6 +312,9 @@
     box-shadow: 0 1px 3px var(--shadow-color);
     opacity: 1;
     transform: translate(-50%, 0);
+  }
+  .Quickdraw .Quickdraw-fanItem--edge .Quickdraw-itemLabel {
+    transform: none;
   }
 }
 

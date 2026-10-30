@@ -151,7 +151,9 @@ export default class Quickdraw extends Component {
         const rad = (degrees * Math.PI) / 180;
         const x = Math.round(ring.radius * Math.cos(rad));
         const y = Math.round(ring.radius * Math.sin(rad));
-        buttons.push(this.button(item, start + i, 'Quickdraw-fanItem', { '--qd-x': x + 'px', '--qd-y': y + 'px' }));
+        // Buttons straight above the main one sit at the screen edge: their label lines up with that edge.
+        const edge = x < 40 ? ' Quickdraw-fanItem--edge' : '';
+        buttons.push(this.button(item, start + i, 'Quickdraw-fanItem' + edge, { '--qd-x': x + 'px', '--qd-y': y + 'px' }));
       });
       start += ring.max;
     });
