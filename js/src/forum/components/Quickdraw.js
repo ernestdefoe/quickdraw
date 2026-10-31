@@ -24,6 +24,31 @@ function t(key, params) {
   return app.translator.trans('ernestdefoe-quickdraw.forum.' + key, params);
 }
 
+// The Clipboard API needs https and can be refused, so fall back to the old
+// copy command, and as a last resort show the link to copy by hand.
+function copy(url) {
+  const done = () => app.alerts.show({ type: 'success' }, t('link_copied'));
+  const legacy = () => {
+    const field = document.createElement('textarea');
+    field.value = url;
+    field.readOnly = true;
+    field.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(field);
+    field.select();
+    field.setSelectionRange(0, url.length);
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch (e) {}
+    field.remove();
+    if (ok) done();
+    else app.alerts.show({ type: 'error' }, t('copy_failed', { url }));
+  };
+
+  if (window.isSecureContext && navigator.clipboard) navigator.clipboard.writeText(url).then(done, legacy);
+  else legacy();
+}
+
 /*
  * Another extension's control is a <Button icon onclick>label</Button>. Read
  * it into our own shape, so follow, lock, sticky, tags and whatever else a
@@ -255,11 +280,7 @@ export default class Quickdraw extends Component {
       {
         icon: 'fas fa-link',
         label: extractText(t('copy_link')),
-        action: () =>
-          navigator.clipboard?.writeText(url).then(
-            () => app.alerts.show({ type: 'success' }, t('link_copied')),
-            () => {}
-          ),
+        action: () => copy(url),
       },
       85
     );
