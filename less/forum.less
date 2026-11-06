@@ -8,7 +8,8 @@
   --qd-gap: 16px;
 
   position: fixed;
-  bottom: calc(var(--qd-gap) + env(safe-area-inset-bottom, 0px) + var(--qd-lift, 0px));
+  // Whatever it is lifted above already clears the home indicator.
+  bottom: calc(~"var(--qd-gap) + max(var(--qd-lift, 0px), env(safe-area-inset-bottom, 0px))");
   right: calc(var(--qd-gap) + env(safe-area-inset-right, 0px));
   z-index: calc(~"var(--zindex-composer, 1020) - 1");
   width: var(--qd-size);
@@ -334,8 +335,8 @@
   width: 320px;
   max-width: calc(~"100vw - 32px");
   // Never taller than the room above the button, wherever it has been lifted to.
-  max-height: calc(~"100vh - var(--qd-size) - var(--qd-gap) - var(--qd-lift, 0px) - env(safe-area-inset-bottom, 0px) - 28px");
-  max-height: calc(~"100dvh - var(--qd-size) - var(--qd-gap) - var(--qd-lift, 0px) - env(safe-area-inset-bottom, 0px) - 28px");
+  max-height: calc(~"100vh - var(--qd-size) - var(--qd-gap) - max(var(--qd-lift, 0px), env(safe-area-inset-bottom, 0px)) - 28px");
+  max-height: calc(~"100dvh - var(--qd-size) - var(--qd-gap) - max(var(--qd-lift, 0px), env(safe-area-inset-bottom, 0px)) - 28px");
   overflow-y: auto;
   padding: 14px;
   border-radius: 18px;

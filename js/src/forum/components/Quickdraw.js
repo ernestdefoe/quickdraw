@@ -81,7 +81,11 @@ export default class Quickdraw extends Component {
         m.redraw();
       }
     };
-    this.onMove = () => this.lift();
+    // A frame later, once a tab bar listening to the same scroll has shown or hidden itself.
+    let frame = 0;
+    this.onMove = () => {
+      if (!frame) frame = requestAnimationFrame(() => ((frame = 0), this.lift()));
+    };
     document.addEventListener('keydown', this.onKey);
     window.addEventListener('resize', this.onMove);
     window.addEventListener('scroll', this.onMove, { passive: true });
@@ -374,6 +378,9 @@ export default class Quickdraw extends Component {
       if (r.right <= box.left || r.left >= box.right) return;
       lift = Math.max(lift, window.innerHeight - r.top);
     });
+    // acpl/mobile-tab's bar slides away while scrolling down: go by its class, not where it is mid-slide.
+    const tab = document.querySelector('.MobileTab:not(.MobileTab--hidden)');
+    if (tab) lift = Math.max(lift, tab.offsetHeight);
 
     const value = lift + 'px';
     if (el.style.getPropertyValue('--qd-lift') !== value) el.style.setProperty('--qd-lift', value);
