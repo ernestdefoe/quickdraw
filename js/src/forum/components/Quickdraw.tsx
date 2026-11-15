@@ -301,8 +301,18 @@ export default class Quickdraw extends Component<QuickdrawAttrs> {
 
   items(discussion: Discussion, stream: PostStreamState) {
     const items = new ItemList<Item>();
-    const user = app.session.user;
     const context = {} as any; // Not the DiscussionPage, so extensions hand over their plain button forms.
+
+    this.replyItems(items, discussion, stream, context);
+    this.linkItems(items, discussion, stream);
+    this.moderationItems(items, discussion, stream, context);
+
+    return items;
+  }
+
+  // Reply, Follow and whatever else extensions add for members, and where the reader left off.
+  replyItems(items: ItemList<Item>, discussion: Discussion, stream: PostStreamState, context: any) {
+    const user = app.session.user;
 
     if (!user || discussion.canReply()) {
       items.add(
@@ -312,7 +322,9 @@ export default class Quickdraw extends Component<QuickdrawAttrs> {
           label: extractText(
             app.translator.trans(user ? 'core.forum.discussion_controls.reply_button' : 'core.forum.discussion_controls.log_in_to_reply_button')
           ),
-          action: () => DiscussionControls.replyAction.call(discussion, true, false).catch(() => {}),
+          // For a guest, core opens the log-in modal and rejects the promise
+          // with nothing to report; any real failure already shows core's alert.
+          action: () => DiscussionControls.replyAction.call(discussion, true, false).catch(() => undefined),
           primary: true,
         },
         100
@@ -336,17 +348,12 @@ export default class Quickdraw extends Component<QuickdrawAttrs> {
         90
       );
     }
+  }
 
+  // Copy or share the link, and jump to either end.
+  linkItems(items: ItemList<Item>, discussion: Discussion, stream: PostStreamState) {
     const url = window.location.origin + app.route.discussion(discussion);
-    items.add(
-      'copy',
-      {
-        icon: 'fas fa-link',
-        label: extractText(t('copy_link')),
-        action: () => copy(url),
-      },
-      85
-    );
+    items.add('copy', { icon: 'fas fa-link', label: extractText(t('copy_link')), action: () => copy(url) }, 85);
 
     if (navigator.share) {
       items.add(
@@ -354,7 +361,9 @@ export default class Quickdraw extends Component<QuickdrawAttrs> {
         {
           icon: 'fas fa-share-nodes',
           label: extractText(t('share')),
-          action: () => navigator.share({ title: discussion.title(), url }).catch(() => {}),
+          // Closing the share sheet is an AbortError and needs nothing; if the
+          // browser refuses to share at all, copy the link instead.
+          action: () => navigator.share({ title: discussion.title(), url }).catch((e) => e?.name === 'AbortError' || copy(url)),
         },
         80
       );
@@ -362,9 +371,11 @@ export default class Quickdraw extends Component<QuickdrawAttrs> {
 
     items.add('first', { icon: 'fas fa-angles-up', label: extractText(t('first_post')), action: () => stream.goToFirst() }, 75);
     items.add('last', { icon: 'fas fa-angles-down', label: extractText(t('last_post')), action: () => stream.goToLast() }, 70);
+  }
 
-    // Moderators and admins. Flags come with the posts already on the page,
-    // so counting them costs nothing.
+  // Moderators and admins: flagged posts, then core's and extensions' moderation and destructive controls.
+  moderationItems(items: ItemList<Item>, discussion: Discussion, stream: PostStreamState, context: any) {
+    // Flags come with the posts already on the page, so counting them costs nothing.
     if ('flarum-flags' in (flarum.extensions || {}) && app.forum.attribute('canViewFlags')) {
       const posts = app.store
         .all<Post>('posts')
@@ -400,8 +411,6 @@ export default class Quickdraw extends Component<QuickdrawAttrs> {
           if (item && !items.has(vnode.itemName)) items.add(vnode.itemName, item, priority - i);
         });
     });
-
-    return items;
   }
 
   show(focus: string | null, keyboard = true) {
