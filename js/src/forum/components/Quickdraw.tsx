@@ -22,7 +22,23 @@ export interface QuickdrawAttrs extends ComponentAttrs {
 }
 
 type Tone = 'moderate' | 'danger';
-type ListedItem = Item & { itemName: string };
+
+// Flarum flips these on the page as it scrolls (the header pins, the sidebar
+// sticks). They only touch the top of the screen, never a bar at the bottom.
+const SCROLL_CLASSES = ['affix', 'scrolled'];
+
+/**
+ * A class change that only adds or removes scroll classes. A record is read
+ * against the class the element has now, so one that nets out to no change
+ * (a class flipped and back in the same batch) moves nothing either.
+ */
+function scrollOnly(record: MutationRecord): boolean {
+  if (record.attributeName !== 'class') return false;
+  const before = new Set((record.oldValue || '').split(/\s+/).filter(Boolean));
+  const after = new Set(((record.target as Element).getAttribute('class') || '').split(/\s+/).filter(Boolean));
+  const changed = [...before, ...after].filter((name) => before.has(name) !== after.has(name));
+  return changed.every((name) => SCROLL_CLASSES.includes(name));
+}
 
 interface Item {
   itemName?: string;
@@ -134,10 +150,17 @@ export default class Quickdraw extends Component<QuickdrawAttrs> {
     const outside = (node: Node) =>
       !(this.element && this.element.contains(node)) &&
       !((node.nodeType === 1 ? node : node.parentNode) as Element | null)?.closest?.('.PostStreamScrubber, .PostStream');
-    this.observer = new MutationObserver((records) => records.some((record) => outside(record.target)) && this.queue());
-    this.observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
-    // A bar that slides or fades in has its final place once it settles.
-    this.onSettle = (e: Event) => outside(e.target as Node) && this.queue();
+    this.observer = new MutationObserver((records) => records.some((record) => outside(record.target) && !scrollOnly(record)) && this.queue());
+    this.observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeOldValue: true,
+      attributeFilter: ['class', 'style', 'hidden'],
+    });
+    // A bar that slides or fades in has its final place once it settles. The
+    // header animating as it pins on scroll is not one.
+    this.onSettle = (e: Event) => outside(e.target as Node) && !(e.target as Element).closest?.('.App-header') && this.queue();
     document.addEventListener('keydown', this.onKey);
     document.addEventListener('transitionend', this.onSettle, true);
     document.addEventListener('animationend', this.onSettle, true);
