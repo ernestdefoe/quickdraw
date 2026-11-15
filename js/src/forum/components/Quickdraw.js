@@ -81,27 +81,44 @@ export default class Quickdraw extends Component {
         m.redraw();
       }
     };
-    // A frame later, once a tab bar listening to the same scroll has shown or hidden itself.
-    let frame = 0;
-    this.onMove = () => {
-      if (!frame) frame = requestAnimationFrame(() => ((frame = 0), this.lift()));
+    // Measure at most once a frame, and only when something outside the
+    // button changed: an alert, the composer, a cookie banner, another
+    // extension's bar, or the Mobile Tab bar sliding away (a class change).
+    // A redraw that leaves the page as it was costs nothing. Fixed bars
+    // don't move on scroll, so scrolling alone doesn't measure either.
+    this.queue = () => {
+      if (!this.frame) this.frame = requestAnimationFrame(() => ((this.frame = 0), this.lift()));
     };
+    // The scrubber and the posts change on every scroll and never hold a bar.
+    const outside = (node) =>
+      !(this.element && this.element.contains(node)) &&
+      !(node.nodeType === 1 ? node : node.parentNode)?.closest?.('.PostStreamScrubber, .PostStream');
+    this.observer = new MutationObserver((records) => records.some((record) => outside(record.target)) && this.queue());
+    this.observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
+    // A bar that slides or fades in has its final place once it settles.
+    this.onSettle = (e) => outside(e.target) && this.queue();
     document.addEventListener('keydown', this.onKey);
-    window.addEventListener('resize', this.onMove);
-    window.addEventListener('scroll', this.onMove, { passive: true });
+    document.addEventListener('transitionend', this.onSettle, true);
+    document.addEventListener('animationend', this.onSettle, true);
+    window.addEventListener('resize', this.queue);
     this.lift();
   }
 
   onupdate(vnode) {
     super.onupdate(vnode);
-    this.lift();
+    // The button itself just came back (the composer closed, the posts loaded).
+    if (this.shown !== this.wasShown) this.queue();
+    this.wasShown = this.shown;
   }
 
   onremove(vnode) {
     super.onremove(vnode);
+    cancelAnimationFrame(this.frame);
+    this.observer.disconnect();
     document.removeEventListener('keydown', this.onKey);
-    window.removeEventListener('resize', this.onMove);
-    window.removeEventListener('scroll', this.onMove);
+    document.removeEventListener('transitionend', this.onSettle, true);
+    document.removeEventListener('animationend', this.onSettle, true);
+    window.removeEventListener('resize', this.queue);
   }
 
   view() {
@@ -111,7 +128,8 @@ export default class Quickdraw extends Component {
     const layout = this.expanded || app.forum.attribute('quickdrawLayout') === 'panel' ? 'panel' : 'fan';
     const side = app.forum.attribute('quickdrawSide') === 'left' ? 'left' : 'right';
 
-    if (!discussion || !page.stream || composing) {
+    this.shown = !!(discussion && page.stream && !composing);
+    if (!this.shown) {
       this.open = false;
       return <div className="Quickdraw is-hidden" />;
     }
