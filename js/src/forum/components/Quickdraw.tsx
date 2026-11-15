@@ -1,10 +1,38 @@
 import app from 'flarum/forum/app';
-import Component from 'flarum/common/Component';
+import Component, { type ComponentAttrs } from 'flarum/common/Component';
 import Icon from 'flarum/common/components/Icon';
 import ItemList from 'flarum/common/utils/ItemList';
 import classList from 'flarum/common/utils/classList';
 import extractText from 'flarum/common/utils/extractText';
 import DiscussionControls from 'flarum/forum/utils/DiscussionControls';
+import type Mithril from 'mithril';
+import type Discussion from 'flarum/common/models/Discussion';
+import type DiscussionPage from 'flarum/forum/components/DiscussionPage';
+import type PostStreamState from 'flarum/forum/states/PostStreamState';
+import type Post from 'flarum/common/models/Post';
+
+// The DiscussionPage it belongs to; the two fields read here are protected in core's typings.
+interface PageState {
+  discussion?: Discussion | null;
+  stream?: PostStreamState | null;
+}
+
+export interface QuickdrawAttrs extends ComponentAttrs {
+  page: DiscussionPage;
+}
+
+type Tone = 'moderate' | 'danger';
+type ListedItem = Item & { itemName: string };
+
+interface Item {
+  itemName?: string;
+  icon: string;
+  label: string;
+  action: (e: MouseEvent) => unknown;
+  tone?: Tone | null;
+  badge?: number;
+  primary?: boolean;
+}
 
 // Things fixed to the bottom of the screen the button must sit above.
 const OBSTACLES = [
@@ -20,13 +48,13 @@ const RINGS = [
   { radius: 168, max: 5 },
 ];
 
-function t(key, params) {
+function t(key: string, params: Record<string, string | number> = {}) {
   return app.translator.trans('ernestdefoe-quickdraw.forum.' + key, params);
 }
 
 // The Clipboard API needs https and can be refused, so fall back to the old
 // copy command, and as a last resort show the link to copy by hand.
-function copy(url) {
+function copy(url: string) {
   const done = () => app.alerts.show({ type: 'success' }, t('link_copied'));
   const legacy = () => {
     const field = document.createElement('textarea');
@@ -39,7 +67,10 @@ function copy(url) {
     let ok = false;
     try {
       ok = document.execCommand('copy');
-    } catch (e) {}
+    } catch (e) {
+      // ok stays false, so the error alert below still hands over the link.
+      console.warn('Quickdraw: copy command failed', e);
+    }
     field.remove();
     if (ok) done();
     else app.alerts.show({ type: 'error' }, t('copy_failed', { url }));
@@ -54,7 +85,7 @@ function copy(url) {
  * it into our own shape, so follow, lock, sticky, tags and whatever else a
  * forum runs show up without Quickdraw knowing about them.
  */
-function fromButton(vnode, tone) {
+function fromButton(vnode: any, tone?: Tone): Item | null {
   const attrs = vnode && vnode.attrs;
   if (!attrs || typeof attrs.onclick !== 'function' || attrs.disabled || /\bdisabled\b/.test(attrs.className || '')) return null;
 
@@ -66,16 +97,26 @@ function fromButton(vnode, tone) {
   return { icon: icon || 'fas fa-circle', label, action: attrs.onclick, tone };
 }
 
-export default class Quickdraw extends Component {
-  oninit(vnode) {
+export default class Quickdraw extends Component<QuickdrawAttrs> {
+  open = false;
+  expanded = false;
+  shown = false;
+  wasShown?: boolean;
+  frame = 0;
+  observer?: MutationObserver;
+  onKey!: (e: KeyboardEvent) => void;
+  onSettle!: (e: Event) => void;
+  queue!: () => void;
+
+  oninit(vnode: Mithril.Vnode<QuickdrawAttrs, this>) {
     super.oninit(vnode);
     this.open = false;
   }
 
-  oncreate(vnode) {
+  oncreate(vnode: Mithril.VnodeDOM<QuickdrawAttrs, this>) {
     super.oncreate(vnode);
 
-    this.onKey = (e) => {
+    this.onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && this.open) {
         this.close(true);
         m.redraw();
@@ -90,13 +131,13 @@ export default class Quickdraw extends Component {
       if (!this.frame) this.frame = requestAnimationFrame(() => ((this.frame = 0), this.lift()));
     };
     // The scrubber and the posts change on every scroll and never hold a bar.
-    const outside = (node) =>
+    const outside = (node: Node) =>
       !(this.element && this.element.contains(node)) &&
-      !(node.nodeType === 1 ? node : node.parentNode)?.closest?.('.PostStreamScrubber, .PostStream');
+      !((node.nodeType === 1 ? node : node.parentNode) as Element | null)?.closest?.('.PostStreamScrubber, .PostStream');
     this.observer = new MutationObserver((records) => records.some((record) => outside(record.target)) && this.queue());
     this.observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
     // A bar that slides or fades in has its final place once it settles.
-    this.onSettle = (e) => outside(e.target) && this.queue();
+    this.onSettle = (e: Event) => outside(e.target as Node) && this.queue();
     document.addEventListener('keydown', this.onKey);
     document.addEventListener('transitionend', this.onSettle, true);
     document.addEventListener('animationend', this.onSettle, true);
@@ -104,17 +145,17 @@ export default class Quickdraw extends Component {
     this.lift();
   }
 
-  onupdate(vnode) {
+  onupdate(vnode: Mithril.VnodeDOM<QuickdrawAttrs, this>) {
     super.onupdate(vnode);
     // The button itself just came back (the composer closed, the posts loaded).
     if (this.shown !== this.wasShown) this.queue();
     this.wasShown = this.shown;
   }
 
-  onremove(vnode) {
+  onremove(vnode: Mithril.VnodeDOM<QuickdrawAttrs, this>) {
     super.onremove(vnode);
     cancelAnimationFrame(this.frame);
-    this.observer.disconnect();
+    this.observer?.disconnect();
     document.removeEventListener('keydown', this.onKey);
     document.removeEventListener('transitionend', this.onSettle, true);
     document.removeEventListener('animationend', this.onSettle, true);
@@ -122,14 +163,14 @@ export default class Quickdraw extends Component {
   }
 
   view() {
-    const page = this.attrs.page;
+    const page = this.attrs.page as unknown as PageState;
     const discussion = page.discussion;
     const composing = ['normal', 'fullScreen'].includes(app.composer.position);
     const layout = this.expanded || app.forum.attribute('quickdrawLayout') === 'panel' ? 'panel' : 'fan';
     const side = app.forum.attribute('quickdrawSide') === 'left' ? 'left' : 'right';
 
     this.shown = !!(discussion && page.stream && !composing);
-    if (!this.shown) {
+    if (!discussion || !page.stream || !this.shown) {
       this.open = false;
       return <div className="Quickdraw is-hidden" />;
     }
@@ -154,7 +195,7 @@ export default class Quickdraw extends Component {
           aria-label={extractText(t(this.open ? 'close' : 'open'))}
           title={extractText(t(this.open ? 'close' : 'open'))}
           // detail is 0 for a keyboard press: only then does focus move into the menu.
-          onclick={(e) => (this.open ? this.close(e.detail === 0) : this.show(null, e.detail === 0))}
+          onclick={(e: MouseEvent) => (this.open ? this.close(e.detail === 0) : this.show(null, e.detail === 0))}
         >
           <Icon name="fas fa-bolt" className="Quickdraw-fabIcon Quickdraw-fabIcon--open" />
           <Icon name="fas fa-xmark" className="Quickdraw-fabIcon Quickdraw-fabIcon--close" />
@@ -164,8 +205,8 @@ export default class Quickdraw extends Component {
     );
   }
 
-  fan(items) {
-    const buttons = [];
+  fan(items: Item[]) {
+    const buttons: Mithril.Children[] = [];
     let start = 0;
 
     // The fan holds the everyday actions. Moderation, and anything that
@@ -183,7 +224,7 @@ export default class Quickdraw extends Component {
         label: extractText(t(moderation.length ? 'moderate' : 'more')),
         badge: flagged && flagged.badge,
         tone: moderation.length ? 'moderate' : null,
-        action: (e) => {
+        action: (e: MouseEvent) => {
           this.expanded = true;
           this.show(moderation.length ? '.Quickdraw-section .Quickdraw-item' : null, e.detail === 0);
         },
@@ -212,7 +253,7 @@ export default class Quickdraw extends Component {
     );
   }
 
-  panel(items, discussion) {
+  panel(items: Item[], discussion: Discussion) {
     const actions = items.filter((item) => !item.tone);
     const tiles = actions.slice(0, 4);
     const rows = actions.slice(4);
@@ -236,7 +277,7 @@ export default class Quickdraw extends Component {
     );
   }
 
-  button(item, index, className, style = {}) {
+  button(item: Item, index: number, className: string, style: Record<string, string> = {}) {
     return (
       <button
         type="button"
@@ -247,7 +288,7 @@ export default class Quickdraw extends Component {
         tabindex={this.open ? 0 : -1}
         aria-label={item.badge ? `${item.label} (${item.badge})` : item.label}
         data-label={item.label}
-        onclick={(e) => this.run(item, e)}
+        onclick={(e: MouseEvent) => this.run(item, e)}
       >
         <span className="Quickdraw-itemIcon">
           <Icon name={item.icon} />
@@ -258,10 +299,10 @@ export default class Quickdraw extends Component {
     );
   }
 
-  items(discussion, stream) {
-    const items = new ItemList();
+  items(discussion: Discussion, stream: PostStreamState) {
+    const items = new ItemList<Item>();
     const user = app.session.user;
-    const context = {}; // Not the DiscussionPage, so extensions hand over their plain button forms.
+    const context = {} as any; // Not the DiscussionPage, so extensions hand over their plain button forms.
 
     if (!user || discussion.canReply()) {
       items.add(
@@ -280,7 +321,7 @@ export default class Quickdraw extends Component {
 
     DiscussionControls.userControls(discussion, context)
       .toArray()
-      .forEach((vnode, i) => {
+      .forEach((vnode: any, i: number) => {
         const item = fromButton(vnode);
         // Follow keeps its place by Reply; whatever else extensions add follows our own.
         if (item && vnode.itemName !== 'reply') items.add(vnode.itemName, item, vnode.itemName === 'subscription' ? 95 : 60 - i);
@@ -326,8 +367,9 @@ export default class Quickdraw extends Component {
     // so counting them costs nothing.
     if ('flarum-flags' in (flarum.extensions || {}) && app.forum.attribute('canViewFlags')) {
       const posts = app.store
-        .all('posts')
-        .filter((post) => post.discussion() === discussion && post.flags && (post.flags() || []).length)
+        .all<Post>('posts')
+        // flags() comes from flarum/flags, which has no typings here.
+        .filter((post: any) => post.discussion() === discussion && post.flags && (post.flags() || []).length)
         .sort((a, b) => a.number() - b.number());
 
       if (posts.length) {
@@ -345,13 +387,15 @@ export default class Quickdraw extends Component {
       }
     }
 
-    [
+    const sections: [string, Tone, number][] = [
       ['moderation', 'moderate', 40],
       ['destructive', 'danger', 20],
-    ].forEach(([section, tone, priority]) => {
-      DiscussionControls[section + 'Controls'](discussion, context)
+    ];
+    sections.forEach(([section, tone, priority]) => {
+      (DiscussionControls as any)
+        [section + 'Controls'](discussion, context)
         .toArray()
-        .forEach((vnode, i) => {
+        .forEach((vnode: any, i: number) => {
           const item = fromButton(vnode, tone);
           if (item && !items.has(vnode.itemName)) items.add(vnode.itemName, item, priority - i);
         });
@@ -360,23 +404,23 @@ export default class Quickdraw extends Component {
     return items;
   }
 
-  show(focus, keyboard = true) {
+  show(focus: string | null, keyboard = true) {
     this.open = true;
     if (!keyboard) return;
     setTimeout(() => {
-      const target = (focus && this.element?.querySelector(focus)) || this.element?.querySelector('.Quickdraw-item');
+      const target = (focus && this.element?.querySelector<HTMLElement>(focus)) || this.element?.querySelector<HTMLElement>('.Quickdraw-item');
       target?.focus({ preventScroll: true });
       if (focus) target?.scrollIntoView({ block: 'nearest' });
     }, 60);
   }
 
-  close(refocus) {
+  close(refocus = false) {
     this.open = false;
     this.expanded = false;
-    if (refocus) this.element?.querySelector('.Quickdraw-fab')?.focus({ preventScroll: true });
+    if (refocus) this.element?.querySelector<HTMLElement>('.Quickdraw-fab')?.focus({ preventScroll: true });
   }
 
-  run(item, e) {
+  run(item: Item, e: MouseEvent) {
     this.close();
     item.action(e);
   }
@@ -384,7 +428,7 @@ export default class Quickdraw extends Component {
   // Lift the button above whatever else is fixed to the bottom of the screen
   // in its column. Written straight to the element: no redraw.
   lift() {
-    const el = this.element;
+    const el = this.element as HTMLElement | undefined;
     const fab = el && el.querySelector('.Quickdraw-fab');
     if (!fab) return;
 
@@ -397,7 +441,7 @@ export default class Quickdraw extends Component {
       lift = Math.max(lift, window.innerHeight - r.top);
     });
     // acpl/mobile-tab's bar slides away while scrolling down: go by its class, not where it is mid-slide.
-    const tab = document.querySelector('.MobileTab:not(.MobileTab--hidden)');
+    const tab = document.querySelector<HTMLElement>('.MobileTab:not(.MobileTab--hidden)');
     if (tab) lift = Math.max(lift, tab.offsetHeight);
 
     const value = lift + 'px';

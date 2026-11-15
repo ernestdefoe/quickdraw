@@ -1,7 +1,7 @@
 # composer.json, PHP 8.3 syntax (the oldest PHP Flarum 2 supports), and the JS
-# checks and production build, including that the committed js/dist matches a
-# fresh build. Quickdraw has no server code beyond extend.php, so there is no
-# test suite or PHPStan run.
+# checks (Prettier, TypeScript against core's typings) and production build,
+# including that the committed js/dist matches a fresh build. Quickdraw has no
+# server code beyond extend.php, so there is no test suite or PHPStan run.
 
 name: CI
 
@@ -44,11 +44,16 @@ jobs:
           cache: npm
           cache-dependency-path: js/package-lock.json
 
+      # check-typings reads core's typings from vendor/flarum/core.
+      - name: Install core for its typings
+        run: composer install --no-interaction --no-progress --prefer-dist
+
       - name: JS checks and production build
         working-directory: js
         run: |
           npm ci
           npm run format-check
+          npm run check-typings
           npm run build
 
       # js/dist is committed and is what forums load. If a build from the
