@@ -83,9 +83,9 @@ function copy(url: string) {
     let ok = false;
     try {
       ok = document.execCommand('copy');
-    } catch (e) {
-      // ok stays false, so the error alert below still hands over the link.
-      console.warn('Quickdraw: copy command failed', e);
+    } catch {
+      // Silent on purpose: ok stays false, so the error alert below tells the
+      // member the copy failed and shows the link to copy by hand.
     }
     field.remove();
     if (ok) done();
